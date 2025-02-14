@@ -194,7 +194,7 @@ jobs:
           WORKER_PRIVATE_IP=$(cat terraform_output.txt | grep "WORKER_PRIVATE_IP" | cut -d'=' -f2)
           IFS=',' read -ra ADDR <<< "${WORKER_IPS}"
           for worker_ip in "${ADDR[@]}"; do
-            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$worker_ip << 'EOF'
+            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$worker_ip << EOF
               
               if [ -f /home/ubuntu/.kube/k3s.yaml ]; then
                 echo "k3s.yaml exists on $worker_ip"
