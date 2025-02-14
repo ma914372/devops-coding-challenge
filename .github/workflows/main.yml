@@ -4,8 +4,8 @@ on:
   push:
     branches:
       - main
-    paths-ignore:
-      - '.github/workflows/destroy.yml'
+    #paths-ignore:
+      #- '.github/workflows/destroy.yml'
     paths:  
       - terraform/**
   pull_request:
