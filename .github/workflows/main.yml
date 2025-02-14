@@ -203,7 +203,7 @@ jobs:
                 echo "ERROR: k3s.yaml NOT found on $worker_ip"
                 exit 1
               fi
-            EOF
+          EOF
           done
 
       - name: Verify Worker Node Joins Cluster
@@ -216,7 +216,7 @@ jobs:
           for worker_ip in "${ADDR[@]}"; do
             ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$worker_ip << EOF
               KUBECONFIG=/home/ubuntu/.kube/k3s.yaml kubectl get nodes
-            EOF
+          EOF
           done
 
       - name: Verify K3s Cluster Status
