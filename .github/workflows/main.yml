@@ -16,7 +16,6 @@ env:
 jobs:
   terraform:
     runs-on: ubuntu-latest
-    outputs:
 
 
     steps:
