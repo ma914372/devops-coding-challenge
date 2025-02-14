@@ -195,6 +195,7 @@ jobs:
           IFS=',' read -ra ADDR <<< "${WORKER_IPS}"
           for worker_ip in "${ADDR[@]}"; do
             ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$worker_ip << 'EOF'
+              mkdir -p /home/ubuntu/.kube
               if [ -f /home/ubuntu/.kube/k3s.yaml ]; then
                 echo "k3s.yaml exists on $worker_ip"
                 sudo chmod 644 /etc/rancher/k3s/k3s.yaml
