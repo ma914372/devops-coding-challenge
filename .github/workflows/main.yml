@@ -198,7 +198,7 @@ jobs:
               
               if [ -f /home/ubuntu/.kube/k3s.yaml ]; then
                 echo "k3s.yaml exists on $worker_ip"
-                sudo chmod 644 /etc/rancher/k3s/k3s.yaml
+                sudo chmod 644 /home/ubuntu/.kube/k3s.yaml
               else
                 echo "ERROR: k3s.yaml NOT found on $worker_ip"
                 exit 1
