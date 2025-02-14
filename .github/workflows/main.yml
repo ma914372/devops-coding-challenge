@@ -139,6 +139,10 @@ jobs:
 
       - name: Install K3s on master node
         run: |
+          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
+          WORKER_IPS=$(cat terraform_output.txt | grep "WORKER_IPS" | cut -d'=' -f2)
+          MASTER_PRIVATE_IP=$(cat terraform_output.txt | grep "MASTER_PRIVATE_IP" | cut -d'=' -f2)
+          WORKER_PRIVATE_IP=$(cat terraform_output.txt | grep "WORKER_PRIVATE_IP" | cut -d'=' -f2)
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@${MASTER_IPS} << 'EOF'
             curl -sfL https://get.k3s.io | sh -
             sudo cat /etc/rancher/k3s/server/node-token > k3s_token.txt
@@ -148,6 +152,10 @@ jobs:
 
       - name: Install K3s on worker nodes
         run: |
+          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
+          WORKER_IPS=$(cat terraform_output.txt | grep "WORKER_IPS" | cut -d'=' -f2)
+          MASTER_PRIVATE_IP=$(cat terraform_output.txt | grep "MASTER_PRIVATE_IP" | cut -d'=' -f2)
+          WORKER_PRIVATE_IP=$(cat terraform_output.txt | grep "WORKER_PRIVATE_IP" | cut -d'=' -f2)
           K3S_TOKEN=$(cat k3s_token.txt)
           IFS=',' read -ra ADDR <<< "${WORKER_IPS}"
           for worker_ip in "${ADDR[@]}"; do
@@ -158,11 +166,19 @@ jobs:
 
       - name: Copy k3s.yaml from Master Node to GitHub Runner
         run: |
+          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
+          WORKER_IPS=$(cat terraform_output.txt | grep "WORKER_IPS" | cut -d'=' -f2)
+          MASTER_PRIVATE_IP=$(cat terraform_output.txt | grep "MASTER_PRIVATE_IP" | cut -d'=' -f2)
+          WORKER_PRIVATE_IP=$(cat terraform_output.txt | grep "WORKER_PRIVATE_IP" | cut -d'=' -f2)
           scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@${MASTER_IPS}:/etc/rancher/k3s/k3s.yaml ./k3s.yaml
           sed -i "s|127.0.0.1|${MASTER_PRIVATE_IP}|" k3s.yaml
 
       - name: Copy k3s.yaml from GitHub Runner to Worker Nodes
         run: |
+          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
+          WORKER_IPS=$(cat terraform_output.txt | grep "WORKER_IPS" | cut -d'=' -f2)
+          MASTER_PRIVATE_IP=$(cat terraform_output.txt | grep "MASTER_PRIVATE_IP" | cut -d'=' -f2)
+          WORKER_PRIVATE_IP=$(cat terraform_output.txt | grep "WORKER_PRIVATE_IP" | cut -d'=' -f2)
           IFS=',' read -ra ADDR <<< "${WORKER_IPS}"
           for worker_ip in "${ADDR[@]}"; do
             scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ./k3s.yaml ubuntu@$worker_ip:/home/ubuntu/.kube/k3s.yaml
@@ -170,6 +186,10 @@ jobs:
 
       - name: Verify k3s.yaml exists on Worker Nodes
         run: |
+          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
+          WORKER_IPS=$(cat terraform_output.txt | grep "WORKER_IPS" | cut -d'=' -f2)
+          MASTER_PRIVATE_IP=$(cat terraform_output.txt | grep "MASTER_PRIVATE_IP" | cut -d'=' -f2)
+          WORKER_PRIVATE_IP=$(cat terraform_output.txt | grep "WORKER_PRIVATE_IP" | cut -d'=' -f2)
           IFS=',' read -ra ADDR <<< "${WORKER_IPS}"
           for worker_ip in "${ADDR[@]}"; do
             ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$worker_ip << 'EOF'
@@ -184,6 +204,10 @@ jobs:
 
       - name: Verify Worker Node Joins Cluster
         run: |
+          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
+          WORKER_IPS=$(cat terraform_output.txt | grep "WORKER_IPS" | cut -d'=' -f2)
+          MASTER_PRIVATE_IP=$(cat terraform_output.txt | grep "MASTER_PRIVATE_IP" | cut -d'=' -f2)
+          WORKER_PRIVATE_IP=$(cat terraform_output.txt | grep "WORKER_PRIVATE_IP" | cut -d'=' -f2)
           IFS=',' read -ra ADDR <<< "${WORKER_IPS}"
           for worker_ip in "${ADDR[@]}"; do
             ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$worker_ip << 'EOF'
@@ -193,6 +217,10 @@ jobs:
 
       - name: Verify K3s Cluster Status
         run: |
+          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
+          WORKER_IPS=$(cat terraform_output.txt | grep "WORKER_IPS" | cut -d'=' -f2)
+          MASTER_PRIVATE_IP=$(cat terraform_output.txt | grep "MASTER_PRIVATE_IP" | cut -d'=' -f2)
+          WORKER_PRIVATE_IP=$(cat terraform_output.txt | grep "WORKER_PRIVATE_IP" | cut -d'=' -f2)
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@${MASTER_IPS} << 'EOF'
             /usr/local/bin/k3s kubectl get nodes
           EOF
