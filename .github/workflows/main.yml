@@ -17,10 +17,7 @@ jobs:
   terraform:
     runs-on: ubuntu-latest
     outputs:
-      master_ip: ${{ steps.terraform-outputs.outputs.master_ip }}
-      worker_ips: ${{ steps.terraform-outputs.outputs.worker_ips }}
-      master_private_ip: ${{ steps.terraform-outputs.outputs.master_private_ip }}
-      worker_private_ips: ${{ steps.terraform-outputs.outputs.worker_private_ips }} 
+
 
     steps:
       - name: Checkout code
@@ -52,61 +49,123 @@ jobs:
         if: github.ref == 'refs/heads/main'  
         run: terraform apply -auto-approve tfplan
 
-      - name: Extract Terraform Outputs
-        id: terraform-outputs
+      # Step 8: Capture Terraform Outputs and write to file
+      - name: Fetch Terraform Outputs and write to file
         run: |
-          echo "master_ip=$(terraform output -raw master_node_ip)" >> $GITHUB_ENV
-          echo "worker_ips=$(terraform output -raw worker_node_ips)" >> $GITHUB_ENV
-          echo "master_private_ip=$(terraform output -raw master_private_ip)" >> $GITHUB_ENV
-          echo "worker_private_ips=$(terraform output -raw worker_private_ips)" >> $GITHUB_ENV
+          echo "Fetching Terraform outputs..."
+          
+          # Fetching the IPs directly (No JSON Parsing)
+          MASTER_IPS=$(terraform output -raw master_node_ip || echo "")
+          WORKER_IPS=$(terraform output -raw worker_node_ips || echo "")
+          MASTER_PRIVATE_IP=$(terraform output -raw master_private_ip || echo "")
+          WORKER_PRIVATE_IP=$(terraform output -raw worker_private_ips || echo "")
+
+          # Check if any of the outputs are missing or empty
+          if [ -z "$MASTER_IPS" ] || [ -z "$WORKER_IPS" ] || [ -z "$MASTER_PRIVATE_IP" ] || [ -z "$WORKER_PRIVATE_IP" ] ; then
+            echo "Error: One or more Terraform outputs are missing or empty."
+            exit 1
+          fi
+
+          # Write the IPs to a file (this file will be used by the ansible job)
+          echo "MASTER_IPS=$MASTER_IPS" > terraform_output.txt
+          echo "WORKER_IPS=$WORKER_IPS" >> terraform_output.txt
+          echo "MASTER_PRIVATE_IP=$MASTER_PRIVATE_IP" >> terraform_output.txt
+          echo "WORKER_PRIVATE_IP=$WORKER_PRIVATE_IP" >> terraform_output.txt
+
+          # Print the IPs to the log
+          echo "Master IPs: $MASTER_IPS"
+          echo "Worker IPs: $WORKER_IPS"
+          echo "Private_Master_IP: $MASTER_PRIVATE_IP"
+          echo "Private_Worker_IP: $WORKER_PRIVATE_IP"
+          
+
+      # Upload the file as an artifact so it can be accessed in the next job
+      - name: Upload Terraform Output File
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform_output_file
+          path: terraform_output.txt
+
+  
+          
 
   setup_k3s:
     needs: terraform
     runs-on: ubuntu-latest
 
     steps:
+      # Step 1: Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+
+      # Step 3: Download the Terraform output file
+      - name: Download Terraform Output File
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform_output_file
+
+      # Step 4: Read the IPs from the file
+      - name: Read IPs from the file
+        run: |
+          # Read IPs from the file using `cat` and `cut` to extract values
+          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
+          WORKER_IPS=$(cat terraform_output.txt | grep "WORKER_IPS" | cut -d'=' -f2)
+          MASTER_PRIVATE_IP=$(cat terraform_output.txt | grep "MASTER_PRIVATE_IP" | cut -d'=' -f2)
+          WORKER_PRIVATE_IP=$(cat terraform_output.txt | grep "WORKER_PRIVATE_IP" | cut -d'=' -f2)
+          
+          
+          
+
+          # Ensure the variables are set correctly
+          echo "MASTER_IPS: $MASTER_IPS"
+          echo "WORKER_IPS: $WORKER_IPS"
+          echo "MASTER_PRIVATE_IP: $MASTER_PRIVATE_IP
+          echo "WORKER_PRIVATE_IP: $WORKER_PRIVATE_IP
+
+
       - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Set up SSH
         run: |
-          echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > private_key.pem
-          chmod 600 private_key.pem
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > private_key.pem
+          chmod 600 private_key.pem   
 
       - name: Install K3s on master node
         run: |
-          ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.master_ip }} << 'EOF'
+          ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${MASTER_IPS} << 'EOF'
             curl -sfL https://get.k3s.io | sh -
             sudo cat /etc/rancher/k3s/server/node-token > k3s_token.txt
           EOF
 
-          scp -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.master_ip }}:/home/ubuntu/k3s_token.txt ./k3s_token.txt
+          scp -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${MASTER_IPS}:/home/ubuntu/k3s_token.txt ./k3s_token.txt
 
       - name: Install K3s on worker nodes
         run: |
           K3S_TOKEN=$(cat k3s_token.txt)
-          IFS=',' read -ra ADDR <<< "${{ env.worker_private_ips }}"
+          IFS=',' read -ra ADDR <<< "${WORKER_IPS}"
           for worker_ip in "${ADDR[@]}"; do
             ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@$worker_ip << EOF
-              curl -sfL https://get.k3s.io | K3S_URL=https://${{ env.master_private_ip }}:6443 K3S_TOKEN=$K3S_TOKEN sh -
+              curl -sfL https://get.k3s.io | K3S_URL=https://${MASTER_PRIVATE_IP}:6443 K3S_TOKEN=$K3S_TOKEN sh -
             EOF
           done
 
       - name: Copy k3s.yaml from Master Node to GitHub Runner
         run: |
-          scp -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.master_ip }}:/etc/rancher/k3s/k3s.yaml ./k3s.yaml
-          sed -i "s|127.0.0.1|${{ env.master_private_ip }}|" k3s.yaml
+          scp -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${MASTER_IPS}:/etc/rancher/k3s/k3s.yaml ./k3s.yaml
+          sed -i "s|127.0.0.1|${MASTER_PRIVATE_IP}|" k3s.yaml
 
       - name: Copy k3s.yaml from GitHub Runner to Worker Nodes
         run: |
-          IFS=',' read -ra ADDR <<< "${{ env.worker_private_ips }}"
+          IFS=',' read -ra ADDR <<< "${WORKER_IPS}"
           for worker_ip in "${ADDR[@]}"; do
             scp -i private_key.pem -o StrictHostKeyChecking=no ./k3s.yaml ubuntu@$worker_ip:/home/ubuntu/.kube/k3s.yaml
           done
 
       - name: Verify k3s.yaml exists on Worker Nodes
         run: |
-          IFS=',' read -ra ADDR <<< "${{ env.worker_ips }}"
+          IFS=',' read -ra ADDR <<< "${WORKER_IPS}"
           for worker_ip in "${ADDR[@]}"; do
             ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@$worker_ip << 'EOF'
               if [ -f /home/ubuntu/.kube/k3s.yaml ]; then
@@ -120,7 +179,7 @@ jobs:
 
       - name: Verify Worker Node Joins Cluster
         run: |
-          IFS=',' read -ra ADDR <<< "${{ env.worker_ips }}"
+          IFS=',' read -ra ADDR <<< "${WORKER_IPS}"
           for worker_ip in "${ADDR[@]}"; do
             ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@$worker_ip << 'EOF'
               KUBECONFIG=/home/ubuntu/.kube/k3s.yaml kubectl get nodes
@@ -129,6 +188,6 @@ jobs:
 
       - name: Verify K3s Cluster Status
         run: |
-          ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.master_ip }} << 'EOF'
+          ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${MASTER_IPS} << 'EOF'
             /usr/local/bin/k3s kubectl get nodes
           EOF
