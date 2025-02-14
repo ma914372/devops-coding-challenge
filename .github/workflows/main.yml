@@ -179,10 +179,10 @@ jobs:
         run: |
           MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
           WORKER_IPS=$(cat terraform_output.txt | grep "WORKER_IPS" | cut -d'=' -f2)
-          MASTER_PRIVATE_IP=$(cat terraform_output.txt | grep "MASTER_PRIVATE_IP" | cut -d'=' -f2)
-          WORKER_PRIVATE_IP=$(cat terraform_output.txt | grep "WORKER_PRIVATE_IP" | cut -d'=' -f2)
+
           IFS=',' read -ra ADDR <<< "${WORKER_IPS}"
           for worker_ip in "${ADDR[@]}"; do
+            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$worker_ip "mkdir -p /home/ubuntu/.kube"
             scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ./k3s.yaml ubuntu@$worker_ip:/home/ubuntu/.kube/k3s.yaml
           done
 
@@ -195,7 +195,7 @@ jobs:
           IFS=',' read -ra ADDR <<< "${WORKER_IPS}"
           for worker_ip in "${ADDR[@]}"; do
             ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$worker_ip << 'EOF'
-              mkdir -p /home/ubuntu/.kube
+              
               if [ -f /home/ubuntu/.kube/k3s.yaml ]; then
                 echo "k3s.yaml exists on $worker_ip"
                 sudo chmod 644 /etc/rancher/k3s/k3s.yaml
