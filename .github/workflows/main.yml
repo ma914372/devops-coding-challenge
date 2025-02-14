@@ -119,8 +119,8 @@ jobs:
           # Ensure the variables are set correctly
           echo "MASTER_IPS: $MASTER_IPS"
           echo "WORKER_IPS: $WORKER_IPS"
-          echo "MASTER_PRIVATE_IP: $MASTER_PRIVATE_IP
-          echo "WORKER_PRIVATE_IP: $WORKER_PRIVATE_IP
+          echo "MASTER_PRIVATE_IP: $MASTER_PRIVATE_IP"
+          echo "WORKER_PRIVATE_IP: $WORKER_PRIVATE_IP"
 
 
     
@@ -128,7 +128,14 @@ jobs:
         run: |
           mkdir -p ~/.ssh  # Ensure the .ssh directory exists
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa   
+          chmod 600 ~/.ssh/id_rsa  
+
+      - name: Set up SSH Keys on Ansible Control Node
+        run: |
+          # Ensure the .ssh directory exists
+          mkdir -p ~/.ssh
+          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
+          WORKER_IPS=$(cat terraform_output.txt | grep "WORKER_IPS" | cut -d'=' -f2)
 
       - name: Install K3s on master node
         run: |
