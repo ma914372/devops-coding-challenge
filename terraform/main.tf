@@ -66,12 +66,7 @@ resource "aws_security_group" "kubernetes_master_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
  
-  #ingress {
-   # from_port   = 6444
-   # to_port     = 6444
-    #protocol    = "tcp"
-    #cidr_blocks = [aws_subnet.kubernetes_subnet.cidr_block]  
-  #}
+
 
   
   ingress {
