@@ -150,17 +150,6 @@ jobs:
     
           EOF
 
-      - name: Wait for K3s Server to Start on Master Node
-        run: |
-          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
-          WORKER_IPS=$(cat terraform_output.txt | grep "WORKER_IPS" | cut -d'=' -f2)
-          MASTER_PRIVATE_IP=$(cat terraform_output.txt | grep "MASTER_PRIVATE_IP" | cut -d'=' -f2)
-          WORKER_PRIVATE_IP=$(cat terraform_output.txt | grep "WORKER_PRIVATE_IP" | cut -d'=' -f2)
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@${MASTER_IPS} << 'EOF'
-          timeout 300 bash -c 'until nc -z -v -w30 $MASTER_PRIVATE_IP 6443; do echo "Waiting for Kubernetes API to be accessible..."; sleep 10; done'
-          echo "Kubernetes API is accessible"
-          EOF
-
           
       - name: Install K3s on worker nodes
         run: |
