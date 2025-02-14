@@ -124,12 +124,9 @@ jobs:
           echo "WORKER_PRIVATE_IP: $WORKER_PRIVATE_IP
 
 
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
       - name: Set up SSH
         run: |
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > private_key.pem
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 private_key.pem   
 
       - name: Install K3s on master node
