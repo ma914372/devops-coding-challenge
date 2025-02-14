@@ -163,7 +163,7 @@ jobs:
           for worker_ip in "${ADDR[@]}"; do
             ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$worker_ip << EOF
               curl -sfL https://get.k3s.io | K3S_URL=https://${MASTER_PRIVATE_IP}:6443 K3S_TOKEN=$K3S_TOKEN sh -
-            EOF
+          EOF
           done
 
       - name: Copy k3s.yaml from Master Node to GitHub Runner
@@ -197,6 +197,7 @@ jobs:
             ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$worker_ip << 'EOF'
               if [ -f /home/ubuntu/.kube/k3s.yaml ]; then
                 echo "k3s.yaml exists on $worker_ip"
+                sudo chmod 644 /etc/rancher/k3s/k3s.yaml
               else
                 echo "ERROR: k3s.yaml NOT found on $worker_ip"
                 exit 1
@@ -212,7 +213,7 @@ jobs:
           WORKER_PRIVATE_IP=$(cat terraform_output.txt | grep "WORKER_PRIVATE_IP" | cut -d'=' -f2)
           IFS=',' read -ra ADDR <<< "${WORKER_IPS}"
           for worker_ip in "${ADDR[@]}"; do
-            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$worker_ip << 'EOF'
+            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$worker_ip << EOF
               KUBECONFIG=/home/ubuntu/.kube/k3s.yaml kubectl get nodes
             EOF
           done
