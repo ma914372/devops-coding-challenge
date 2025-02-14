@@ -1,0 +1,143 @@
+name: Terraform
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '.github/workflows/destroy.yml'
+    paths:  
+      - terraform/**
+  pull_request:
+    branches:
+      - main
+    paths:
+      - terraform/**  
+  
+env:
+ # Credentials for deployment to AWS
+ AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+ AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+ # S3 bucket for the Terraform state
+ BUCKET_TF_STATE: ${{ secrets.BUCKET_TF_STATE}}
+ AWS_REGION: us-east-1
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    outputs:
+      master_ip: ${{ steps.terraform-outputs.outputs.master_ip }}
+      worker_ips: ${{ steps.terraform-outputs.outputs.worker_ips }}
+      master_private_ip: ${{ steps.terraform-outputs.outputs.master_private_ip }}
+      worker_private_ips: ${{ steps.terraform-outputs.outputs.worker_private_ips }} 
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+          terraform_wrapper: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+          
+      - name: Terraform Init
+        run: terraform init -backend-config="bucket=${{ secrets.BUCKET_TF_STATE }}" -backend-config="key=terraform.tfstate" -backend-config="region=us-east-1"
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main'  
+        run: terraform apply -auto-approve tfplan
+
+      - name: Extract Terraform Outputs
+        id: terraform-outputs
+        run: |
+          echo "master_ip=$(terraform output -raw master_node_ip)" >> $GITHUB_ENV
+          echo "worker_ips=$(terraform output -raw worker_node_ips)" >> $GITHUB_ENV
+          echo "master_private_ip=$(terraform output -raw master_private_ip)" >> $GITHUB_ENV
+          echo "worker_private_ips=$(terraform output -raw worker_private_ips)" >> $GITHUB_ENV
+
+  setup_k3s:
+    needs: terraform
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up SSH
+        run: |
+          echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > private_key.pem
+          chmod 600 private_key.pem
+
+      - name: Install K3s on master node
+        run: |
+          ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.master_ip }} << 'EOF'
+            curl -sfL https://get.k3s.io | sh -
+            sudo cat /etc/rancher/k3s/server/node-token > k3s_token.txt
+          EOF
+
+          scp -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.master_ip }}:/home/ubuntu/k3s_token.txt ./k3s_token.txt
+
+      - name: Install K3s on worker nodes
+        run: |
+          K3S_TOKEN=$(cat k3s_token.txt)
+          IFS=',' read -ra ADDR <<< "${{ env.worker_private_ips }}"
+          for worker_ip in "${ADDR[@]}"; do
+            ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@$worker_ip << EOF
+              curl -sfL https://get.k3s.io | K3S_URL=https://${{ env.master_private_ip }}:6443 K3S_TOKEN=$K3S_TOKEN sh -
+            EOF
+          done
+
+      - name: Copy k3s.yaml from Master Node to GitHub Runner
+        run: |
+          scp -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.master_ip }}:/etc/rancher/k3s/k3s.yaml ./k3s.yaml
+          sed -i "s|127.0.0.1|${{ env.master_private_ip }}|" k3s.yaml
+
+      - name: Copy k3s.yaml from GitHub Runner to Worker Nodes
+        run: |
+          IFS=',' read -ra ADDR <<< "${{ env.worker_private_ips }}"
+          for worker_ip in "${ADDR[@]}"; do
+            scp -i private_key.pem -o StrictHostKeyChecking=no ./k3s.yaml ubuntu@$worker_ip:/home/ubuntu/.kube/k3s.yaml
+          done
+
+      - name: Verify k3s.yaml exists on Worker Nodes
+        run: |
+          IFS=',' read -ra ADDR <<< "${{ env.worker_ips }}"
+          for worker_ip in "${ADDR[@]}"; do
+            ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@$worker_ip << 'EOF'
+              if [ -f /home/ubuntu/.kube/k3s.yaml ]; then
+                echo "k3s.yaml exists on $worker_ip"
+              else
+                echo "ERROR: k3s.yaml NOT found on $worker_ip"
+                exit 1
+              fi
+            EOF
+          done
+
+      - name: Verify Worker Node Joins Cluster
+        run: |
+          IFS=',' read -ra ADDR <<< "${{ env.worker_ips }}"
+          for worker_ip in "${ADDR[@]}"; do
+            ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@$worker_ip << 'EOF'
+              KUBECONFIG=/home/ubuntu/.kube/k3s.yaml kubectl get nodes
+            EOF
+          done
+
+      - name: Verify K3s Cluster Status
+        run: |
+          ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.master_ip }} << 'EOF'
+            /usr/local/bin/k3s kubectl get nodes
+          EOF
