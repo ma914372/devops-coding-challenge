@@ -4,14 +4,8 @@ on:
   push:
     branches:
       - main
-
-    paths:  
-      - terraform/**
-  pull_request:
-    branches:
-      - main
-    paths:
-      - terraform/**  
+    paths-ignore:
+      - '.github/workflows/destroy.yml' 
   
 env:
  # Credentials for deployment to AWS
