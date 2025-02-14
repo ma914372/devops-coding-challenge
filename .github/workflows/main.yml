@@ -123,47 +123,49 @@ jobs:
           echo "WORKER_PRIVATE_IP: $WORKER_PRIVATE_IP
 
 
-      - name: Set up SSH
+    
+      - name: Configure SSH Access
         run: |
+          mkdir -p ~/.ssh  # Ensure the .ssh directory exists
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa   
 
       - name: Install K3s on master node
         run: |
-          ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${MASTER_IPS} << 'EOF'
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@${MASTER_IPS} << 'EOF'
             curl -sfL https://get.k3s.io | sh -
             sudo cat /etc/rancher/k3s/server/node-token > k3s_token.txt
           EOF
 
-          scp -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${MASTER_IPS}:/home/ubuntu/k3s_token.txt ./k3s_token.txt
+          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@${MASTER_IPS}:/home/ubuntu/k3s_token.txt ./k3s_token.txt
 
       - name: Install K3s on worker nodes
         run: |
           K3S_TOKEN=$(cat k3s_token.txt)
           IFS=',' read -ra ADDR <<< "${WORKER_IPS}"
           for worker_ip in "${ADDR[@]}"; do
-            ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@$worker_ip << EOF
+            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$worker_ip << EOF
               curl -sfL https://get.k3s.io | K3S_URL=https://${MASTER_PRIVATE_IP}:6443 K3S_TOKEN=$K3S_TOKEN sh -
             EOF
           done
 
       - name: Copy k3s.yaml from Master Node to GitHub Runner
         run: |
-          scp -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${MASTER_IPS}:/etc/rancher/k3s/k3s.yaml ./k3s.yaml
+          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@${MASTER_IPS}:/etc/rancher/k3s/k3s.yaml ./k3s.yaml
           sed -i "s|127.0.0.1|${MASTER_PRIVATE_IP}|" k3s.yaml
 
       - name: Copy k3s.yaml from GitHub Runner to Worker Nodes
         run: |
           IFS=',' read -ra ADDR <<< "${WORKER_IPS}"
           for worker_ip in "${ADDR[@]}"; do
-            scp -i private_key.pem -o StrictHostKeyChecking=no ./k3s.yaml ubuntu@$worker_ip:/home/ubuntu/.kube/k3s.yaml
+            scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ./k3s.yaml ubuntu@$worker_ip:/home/ubuntu/.kube/k3s.yaml
           done
 
       - name: Verify k3s.yaml exists on Worker Nodes
         run: |
           IFS=',' read -ra ADDR <<< "${WORKER_IPS}"
           for worker_ip in "${ADDR[@]}"; do
-            ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@$worker_ip << 'EOF'
+            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$worker_ip << 'EOF'
               if [ -f /home/ubuntu/.kube/k3s.yaml ]; then
                 echo "k3s.yaml exists on $worker_ip"
               else
@@ -177,13 +179,13 @@ jobs:
         run: |
           IFS=',' read -ra ADDR <<< "${WORKER_IPS}"
           for worker_ip in "${ADDR[@]}"; do
-            ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@$worker_ip << 'EOF'
+            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$worker_ip << 'EOF'
               KUBECONFIG=/home/ubuntu/.kube/k3s.yaml kubectl get nodes
             EOF
           done
 
       - name: Verify K3s Cluster Status
         run: |
-          ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${MASTER_IPS} << 'EOF'
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@${MASTER_IPS} << 'EOF'
             /usr/local/bin/k3s kubectl get nodes
           EOF
