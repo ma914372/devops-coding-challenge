@@ -266,8 +266,6 @@ jobs:
         run: |
           MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IPS << 'EOF'
-            echo "export KUBECONFIG=/etc/rancher/k3s/k3s.yaml" >> ~/.bashrc
-            source ~/.bashrc
             cd devops-coding-challenge
             kubectl create ns app
             kubectl label namespace app app.kubernetes.io/managed-by=Helm 
@@ -276,7 +274,7 @@ jobs:
             helm repo add bitnami https://charts.bitnami.com/bitnami
             helm repo update
             helm dependency update ./app --namespace app
-            helm install app ./app --namespace app
+            helm install app ./app --namespace app --kubeconfig /etc/rancher/k3s/k3s.yaml
           EOF
 
       - name: Verify Application Deployment
