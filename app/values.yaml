@@ -1,0 +1,25 @@
+namespace: app  # Define the namespace for the application and MySQL
+
+mysql:
+  enabled: true
+  imageTag: "8.4.4-debian-12-r0"  # Correct image tag for MySQL
+  database: "challenge"  # Database name
+  service:
+    port: 3306
+
+  # Authentication: New passwords for MySQL users
+  auth:
+    rootPassword: "newRootPassword123"  # New root password
+
+app:
+  image:
+    repository: ma957/challenge
+    tag: latest
+  service:
+    type: LoadBalancer
+    port: 8080
+  env:
+    SPRING_DATASOURCE_PASSWORD: "newRootPassword123"  # Update to the new root password
+    SPRING_DATASOURCE_URL: "jdbc:mysql://app-mysql:3306/challenge?createDatabaseIfNotExist=true"
+    SPRING_DATASOURCE_WRITER_URL: "jdbc:mysql://app-mysql:3306/challenge?createDatabaseIfNotExist=true"
+

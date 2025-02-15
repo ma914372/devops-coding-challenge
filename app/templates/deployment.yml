@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  namespace: {{ .Values.namespace | default "app" }}  # Use namespace from values.yaml or default to "app"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app
+  template:
+    metadata:
+      labels:
+        app: app
+    spec:
+      containers:
+        - name: app
+          image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag }}"
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_DATASOURCE_PASSWORD
+              value: "{{ .Values.app.env.SPRING_DATASOURCE_PASSWORD }}"
+            - name: SPRING_DATASOURCE_URL
+              value: "{{ .Values.app.env.SPRING_DATASOURCE_URL }}"
+            - name: SPRING_DATASOURCE_WRITER_URL
+              value: "{{ .Values.app.env.SPRING_DATASOURCE_WRITER_URL }}"
+
