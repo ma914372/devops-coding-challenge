@@ -186,9 +186,7 @@ jobs:
       - name: Copy k3s.yaml from Master Node to GitHub Runner
         run: |
           MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
-          WORKER_IPS=$(cat terraform_output.txt | grep "WORKER_IPS" | cut -d'=' -f2)
           MASTER_PRIVATE_IP=$(cat terraform_output.txt | grep "MASTER_PRIVATE_IP" | cut -d'=' -f2)
-          WORKER_PRIVATE_IP=$(cat terraform_output.txt | grep "WORKER_PRIVATE_IP" | cut -d'=' -f2)
           scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@${MASTER_IPS}:/etc/rancher/k3s/k3s.yaml ./k3s.yaml
           sed -i "s|127.0.0.1|${MASTER_PRIVATE_IP}|" k3s.yaml
 
@@ -205,7 +203,6 @@ jobs:
 
       - name: Verify k3s.yaml exists on Worker Nodes
         run: |
-          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
           WORKER_IPS=$(cat terraform_output.txt | grep "WORKER_IPS" | cut -d'=' -f2)
           MASTER_PRIVATE_IP=$(cat terraform_output.txt | grep "MASTER_PRIVATE_IP" | cut -d'=' -f2)
           WORKER_PRIVATE_IP=$(cat terraform_output.txt | grep "WORKER_PRIVATE_IP" | cut -d'=' -f2)
