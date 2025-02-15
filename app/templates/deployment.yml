@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: app
-  namespace: {{ .Values.namespace | default "app" }}  # Use namespace from values.yaml or default to "app"
 spec:
   replicas: 1
   selector:
