@@ -162,7 +162,6 @@ jobs:
             curl -sfL https://get.k3s.io | sh -
             sudo chmod 644 /etc/rancher/k3s/k3s.yaml
             echo "K3s installed on master node"
-            sudo sed -i "s/127.0.0.1/${MASTER_PRIVATE_IP}/g" /etc/rancher/k3s/k3s.yaml
             echo "export KUBECONFIG=/etc/rancher/k3s/k3s.yaml" >> ~/.bashrc
             source ~/.bashrc
     
