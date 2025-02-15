@@ -140,13 +140,13 @@ jobs:
       - name: Install K3s on master node
         run: |
           MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
-          WORKER_IPS=$(cat terraform_output.txt | grep "WORKER_IPS" | cut -d'=' -f2)
           MASTER_PRIVATE_IP=$(cat terraform_output.txt | grep "MASTER_PRIVATE_IP" | cut -d'=' -f2)
-          WORKER_PRIVATE_IP=$(cat terraform_output.txt | grep "WORKER_PRIVATE_IP" | cut -d'=' -f2)
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@${MASTER_IPS} << 'EOF'
             curl -sfL https://get.k3s.io | sh -
             sudo chmod 644 /etc/rancher/k3s/k3s.yaml
             echo "K3s installed on master node"
+            echo "export KUBECONFIG=/etc/rancher/k3s/k3s.yaml" >> ~/.bashrc
+            source ~/.bashrc
     
           EOF
 
