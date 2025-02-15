@@ -1,4 +1,4 @@
-name: Terraform
+name: Docker+Terraform+Kubernetes+Helm
 
 on:
   push:
@@ -14,7 +14,7 @@ env:
  AWS_REGION: us-east-1
 
 jobs:
-  push_to_docker_hub:
+  create_push_image_to_docker_hub:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -32,8 +32,8 @@ jobs:
         run: docker push ${{ secrets.DOCKER_USERNAME }}/challenge:latest
   
 
-  terraform:
-   needs: push_to_docker_hub
+  terraform_to_provision_infra:
+   needs: create_push_image_to_docker_hub
    runs-on: ubuntu-latest
 
 
@@ -105,8 +105,8 @@ jobs:
           path: terraform_output.txt
 
   
-  setup_k3s:
-    needs: terraform
+  setup_k3s_and_helm:
+    needs: terraform_to_provision_infra
     runs-on: ubuntu-latest
 
     steps:
