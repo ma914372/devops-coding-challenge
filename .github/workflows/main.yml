@@ -14,11 +14,30 @@ env:
  AWS_REGION: us-east-1
 
 jobs:
-  terraform:
+  push_to_docker_hub:
     runs-on: ubuntu-latest
-
-
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Log in to Docker Hub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      - name: Build Docker image
+        run: docker build -t challenge .
+      - name: Tag the image
+        run: docker tag challenge:latest ${{ secrets.DOCKER_USERNAME }}/challenge:latest    
+
+      - name: Push Docker image to Docker Hub
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/challenge:latest:latest
+  
+
+  terraform:
+   needs: push_to_docker_hub
+   runs-on: ubuntu-latest
+
+
+   steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
@@ -86,8 +105,6 @@ jobs:
           path: terraform_output.txt
 
   
-          
-
   setup_k3s:
     needs: terraform
     runs-on: ubuntu-latest
