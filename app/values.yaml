@@ -14,8 +14,8 @@ app:
     repository: ma957/challenge
     tag: latest
   service:
-    type: LoadBalancer
-    port: 8080
+    type: NodePort
+    port: 30090
   env:
     SPRING_DATASOURCE_PASSWORD: "newRootPassword123"  # Update to the new root password
     SPRING_DATASOURCE_URL: "jdbc:mysql://app-mysql:3306/challenge?createDatabaseIfNotExist=true"
