@@ -280,6 +280,4 @@ jobs:
       - name: Verify Application Deployment
         run: |
           MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IPS << 'EOF'
-            kubectl get pods -A
-          EOF   
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IPS "kubectl get pods -A"
