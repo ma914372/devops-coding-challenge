@@ -12,6 +12,12 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD:dev}
     enabled: true
 
+logging:
+  level:
+    root: DEBUG  # Set root logging level to DEBUG for the entire application
+    org.springframework.web: DEBUG  # Enable DEBUG level for Spring Web logs
+    org.hibernate.SQL: DEBUG  # Enable DEBUG for Hibernate SQL queries
+    org.flywaydb.core: DEBUG  # Enable DEBUG for Flyway migrations (if you need detailed Flyway logs)
 
 management:
   endpoints:
