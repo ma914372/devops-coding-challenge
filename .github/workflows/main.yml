@@ -147,7 +147,7 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa  
 
-      - name: Set up SSH Keys on Ansible Control Node
+      - name: Set up SSH Keys
         run: |
           # Ensure the .ssh directory exists
           mkdir -p ~/.ssh
@@ -251,8 +251,8 @@ jobs:
           MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IPS << 'EOF'
             curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-            chmod 700 get_helm.sh
-            sh get_helm.sh 
+            
+             
           EOF
 
       - name: Clone the Repository on Master Node
