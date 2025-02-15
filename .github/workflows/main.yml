@@ -29,7 +29,7 @@ jobs:
         run: docker tag challenge:latest ${{ secrets.DOCKER_USERNAME }}/challenge:latest    
 
       - name: Push Docker image to Docker Hub
-        run: docker push ${{ secrets.DOCKER_USERNAME }}/challenge:latest:latest
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/challenge:latest
   
 
   terraform:
