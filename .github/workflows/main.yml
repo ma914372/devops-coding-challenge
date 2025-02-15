@@ -245,3 +245,41 @@ jobs:
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@${MASTER_IPS} << 'EOF'
             /usr/local/bin/k3s kubectl get nodes
           EOF
+
+      - name: Install Helm on Master Node
+        run: |
+          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IPS << 'EOF'
+            curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+            chmod 700 get_helm.sh
+            sh get_helm.sh 
+          EOF
+
+      - name: Clone the Repository on Master Node
+        run: |
+          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IPS << 'EOF'
+            git clone https://github.com/ma914372/devops-coding-challenge.git
+          EOF
+
+      - name: Deploy Helm Chart on K3s
+        run: |
+          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IPS << 'EOF'
+            cd devops-coding-challenge
+            kubectl create ns app
+            kubectl label namespace app app.kubernetes.io/managed-by=Helm 
+            kubectl annotate namespace app meta.helm.sh/release-name=app 
+            kubectl annotate namespace app meta.helm.sh/release-namespace=app
+            helm repo add bitnami https://charts.bitnami.com/bitnami
+            helm repo update
+            helm dependency update ./app --namespace app
+            helm install app ./app --namespace app
+          EOF
+
+      - name: Verify Application Deployment
+        run: |
+          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IPS << 'EOF'
+            kubectl get pods -A
+          EOF   
