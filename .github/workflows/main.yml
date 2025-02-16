@@ -179,8 +179,3 @@ jobs:
               --set mysql.secretName=mysql-secret \
               --set mysql.namespace=mysql-namespace
           EOF
-
-      - name: Verify Deployment
-        run: |
-          MASTER_IP=$(cat master_ip.txt)
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IP "kubectl get pods -A"
