@@ -266,11 +266,29 @@ jobs:
           MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IPS << 'EOF'
             cd devops-coding-challenge
+            # Generate a random password
+            RANDOM_PASSWORD=$(openssl rand -base64 16)
+
+            # Check if mysql-namespace exists; if not, create it
+            kubectl get namespace mysql-namespace || kubectl create namespace mysql-namespace
+
+            # Create a Kubernetes secret with the random password in the mysql-namespace
+            kubectl create secret generic mysql-secret \
+              --from-literal=rootPassword=$RANDOM_PASSWORD \
+              -n mysql-namespace --dry-run=client -o yaml | kubectl apply -f -
             helm repo add bitnami https://charts.bitnami.com/bitnami
             helm repo update
             helm dependency update ./app
-            helm install app ./app --namespace app --create-namespace --kubeconfig /etc/rancher/k3s/k3s.yaml
-          EOF
+            #helm install app ./app --namespace app --create-namespace --kubeconfig /etc/rancher/k3s/k3s.yaml
+            helm install app ./app \
+              --namespace app \
+              --create-namespace \
+              --kubeconfig /etc/rancher/k3s/k3s.yaml \
+              --set mysql.auth.rootPassword=$RANDOM_PASSWORD \
+              --set app.env.SPRING_DATASOURCE_PASSWORD=$RANDOM_PASSWORD \
+              --set mysql.secretName=mysql-secret \
+              --set mysql.namespace=mysql-namespace
+            EOF
 
       - name: Verify Application Deployment
         run: |
