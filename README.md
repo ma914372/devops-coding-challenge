@@ -87,15 +87,15 @@ Creates a new user
 - Call the API endpoints using curl.
 Example :
 
-curl -X GET http://<master-node-private-ip>:8080/user?id=1
+curl -X GET http://master-node-private-ip:8080/user?id=1
 Greetings from Crewmeister, Alice!
 
-curl -X POST http://<master-node-private-ip>:8080/user \
+curl -X POST http://master-node-private-ip:8080/user \
      -H "Content-Type: application/json" \
      -d '{"name": "Madhurima"}'
 Greetings from Crewmeister, Madhurima!
 
-curl -X GET http://<master-node-private-ip>:8080/user?id=2
+curl -X GET http://master-node-private-ip:8080/user?id=2
 Greetings from Crewmeister, Madhurima!
 
 * I am using K3S to setup the cluster which doesn't support AWS ELB creation automatically.
