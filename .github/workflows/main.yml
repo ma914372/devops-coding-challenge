@@ -129,7 +129,7 @@ jobs:
             ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$WORKER_IP << EOF
               set -e
               curl -sfL https://get.k3s.io | K3S_URL=https://${MASTER_PRIVATE_IP}:6443 K3S_TOKEN=$K3S_TOKEN sh -
-            EOF
+          EOF
           done
 
       - name: Copy k3s.yaml to GitHub Runner
