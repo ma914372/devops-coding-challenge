@@ -71,7 +71,7 @@ Creates a new user
     - DOCKER_USERNAME
     - SSH_PRIVATE_KEY
 
-- Modify the ec2-instance key-pair name in variable.tf
+- Modify the ec2-instance key-pair name in variable.tf. Here I have used my ssh key pair name (my-key).
 
 - Create S3 bucket for terraform statefile backend and update the main.tf
 
