@@ -16,11 +16,6 @@ variable "subnet_cidr" {
     default = "10.30.1.0/24"
 }
 
-variable "subnet_cidr_ansible" {
-  description = "CIDR block for Ansible Subnet"
-  type        = string
-  default = "10.30.4.0/24"
-}
 
 variable "instance_type" {
   default = "t2.medium"
