@@ -288,7 +288,7 @@ jobs:
               --set app.env.SPRING_DATASOURCE_PASSWORD=$RANDOM_PASSWORD \
               --set mysql.secretName=mysql-secret \
               --set mysql.namespace=mysql-namespace
-            EOF
+          EOF
 
       - name: Verify Application Deployment
         run: |
