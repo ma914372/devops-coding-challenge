@@ -8,12 +8,9 @@ on:
       - '.github/workflows/destroy.yml' 
       - 'variables.tf'
       - 'outputs.tf'
-  
+
 env:
- # Credentials for deployment to AWS
- AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
- AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
- AWS_REGION: us-east-1
+  AWS_REGION: us-east-1
 
 jobs:
   create_push_image_to_docker_hub:
@@ -25,21 +22,16 @@ jobs:
       - name: Log in to Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-      - name: Build Docker image
-        run: docker build -t challenge .
-      - name: Tag the image
-        run: docker tag challenge:latest ${{ secrets.DOCKER_USERNAME }}/challenge:latest    
-
-      - name: Push Docker image to Docker Hub
-        run: docker push ${{ secrets.DOCKER_USERNAME }}/challenge:latest
-  
+      - name: Build and Push Docker Image
+        run: |
+          docker build -t challenge .
+          docker tag challenge:latest ${{ secrets.DOCKER_USERNAME }}/challenge:latest    
+          docker push ${{ secrets.DOCKER_USERNAME }}/challenge:latest
 
   terraform_to_provision_infra:
-   needs: create_push_image_to_docker_hub
-   runs-on: ubuntu-latest
-
-
-   steps:
+    needs: create_push_image_to_docker_hub
+    runs-on: ubuntu-latest
+    steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
@@ -54,243 +46,133 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-          
-      - name: Terraform Init
-        run: terraform init -backend-config="bucket=${{ secrets.BUCKET_TF_STATE }}" -backend-config="key=terraform.tfstate" -backend-config="region=us-east-1"
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Terraform Validate
-        run: terraform validate
-
-      - name: Terraform Plan
-        run: terraform plan -out=tfplan
-
-      - name: Terraform Apply
-        if: github.ref == 'refs/heads/main'  
-        run: terraform apply -auto-approve tfplan
-
-      # Step 8: Capture Terraform Outputs and write to file
-      - name: Fetch Terraform Outputs and write to file
+      - name: Terraform Init & Apply
         run: |
-          echo "Fetching Terraform outputs..."
-          
-          # Fetching the IPs directly (No JSON Parsing)
-          MASTER_IPS=$(terraform output -raw master_node_ip || echo "")
-          WORKER_IPS=$(terraform output -raw worker_node_ips || echo "")
-          MASTER_PRIVATE_IP=$(terraform output -raw master_private_ip || echo "")
-          WORKER_PRIVATE_IP=$(terraform output -raw worker_private_ips || echo "")
+          terraform init -backend-config="bucket=${{ secrets.BUCKET_TF_STATE }}" \
+                        -backend-config="key=terraform.tfstate" \
+                        -backend-config="region=${{ env.AWS_REGION }}"
+          terraform validate
+          terraform plan -out=tfplan
+          terraform apply -auto-approve tfplan
 
-          # Check if any of the outputs are missing or empty
-          if [ -z "$MASTER_IPS" ] || [ -z "$WORKER_IPS" ] || [ -z "$MASTER_PRIVATE_IP" ] || [ -z "$WORKER_PRIVATE_IP" ] ; then
-            echo "Error: One or more Terraform outputs are missing or empty."
-            exit 1
-          fi
+      - name: Capture Terraform Outputs
+        run: |
+          set -e
+          terraform output -raw master_node_ip > master_ip.txt
+          terraform output -raw worker_node_ips > worker_ips.txt
+          terraform output -raw master_private_ip > master_private_ip.txt
+          terraform output -raw worker_private_ips > worker_private_ips.txt
+          echo "Terraform outputs saved."
 
-          # Write the IPs to a file (this file will be used by the ansible job)
-          echo "MASTER_IPS=$MASTER_IPS" > terraform_output.txt
-          echo "WORKER_IPS=$WORKER_IPS" >> terraform_output.txt
-          echo "MASTER_PRIVATE_IP=$MASTER_PRIVATE_IP" >> terraform_output.txt
-          echo "WORKER_PRIVATE_IP=$WORKER_PRIVATE_IP" >> terraform_output.txt
-
-          # Print the IPs to the log
-          echo "Master IPs: $MASTER_IPS"
-          echo "Worker IPs: $WORKER_IPS"
-          echo "Private_Master_IP: $MASTER_PRIVATE_IP"
-          echo "Private_Worker_IP: $WORKER_PRIVATE_IP"
-          
-
-      # Upload the file as an artifact so it can be accessed in the next job
-      - name: Upload Terraform Output File
+      - name: Upload Terraform Output Files
         uses: actions/upload-artifact@v4
         with:
-          name: terraform_output_file
-          path: terraform_output.txt
+          name: terraform_outputs
+          path: |
+            master_ip.txt
+            worker_ips.txt
+            master_private_ip.txt
+            worker_private_ips.txt
 
-  
   setup_k3s_and_helm:
     needs: terraform_to_provision_infra
     runs-on: ubuntu-latest
-
     steps:
-      # Step 1: Checkout code
       - name: Checkout code
         uses: actions/checkout@v3
 
-
-      # Step 3: Download the Terraform output file
-      - name: Download Terraform Output File
+      - name: Download Terraform Output Files
         uses: actions/download-artifact@v4
         with:
-          name: terraform_output_file
+          name: terraform_outputs
 
-      # Step 4: Read the IPs from the file
-      - name: Read IPs from the file
+      - name: Read Terraform Outputs
         run: |
-          # Read IPs from the file using `cat` and `cut` to extract values
-          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
-          WORKER_IPS=$(cat terraform_output.txt | grep "WORKER_IPS" | cut -d'=' -f2)
-          MASTER_PRIVATE_IP=$(cat terraform_output.txt | grep "MASTER_PRIVATE_IP" | cut -d'=' -f2)
-          WORKER_PRIVATE_IP=$(cat terraform_output.txt | grep "WORKER_PRIVATE_IP" | cut -d'=' -f2)
-          
-          
-          
+          MASTER_IP=$(cat master_ip.txt)
+          WORKER_IPS=$(cat worker_ips.txt)
+          MASTER_PRIVATE_IP=$(cat master_private_ip.txt)
+          WORKER_PRIVATE_IPS=$(cat worker_private_ips.txt)
 
-          # Ensure the variables are set correctly
-          echo "MASTER_IPS: $MASTER_IPS"
-          echo "WORKER_IPS: $WORKER_IPS"
-          echo "MASTER_PRIVATE_IP: $MASTER_PRIVATE_IP"
-          echo "WORKER_PRIVATE_IP: $WORKER_PRIVATE_IP"
+          echo "MASTER_IP=$MASTER_IP"
+          echo "WORKER_IPS=$WORKER_IPS"
+          echo "MASTER_PRIVATE_IP=$MASTER_PRIVATE_IP"
+          echo "WORKER_PRIVATE_IPS=$WORKER_PRIVATE_IPS"
 
-
-    
       - name: Configure SSH Access
         run: |
-          mkdir -p ~/.ssh  # Ensure the .ssh directory exists
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa  
-
-      - name: Set up SSH Keys
-        run: |
-          # Ensure the .ssh directory exists
           mkdir -p ~/.ssh
-          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
-          WORKER_IPS=$(cat terraform_output.txt | grep "WORKER_IPS" | cut -d'=' -f2)
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
 
-      - name: Install K3s on master node
+      - name: Install K3s on Master Node
         run: |
-          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
-          MASTER_PRIVATE_IP=$(cat terraform_output.txt | grep "MASTER_PRIVATE_IP" | cut -d'=' -f2)
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@${MASTER_IPS} << 'EOF'
+          MASTER_IP=$(cat master_ip.txt)
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IP << 'EOF'
+            set -e
             curl -sfL https://get.k3s.io | sh -
             sudo chmod 644 /etc/rancher/k3s/k3s.yaml
-            echo "K3s installed on master node"
             echo "export KUBECONFIG=/etc/rancher/k3s/k3s.yaml" >> ~/.bashrc
             source ~/.bashrc
-    
           EOF
 
+      - name: Install K3s on Worker Nodes
+        run: |
+          MASTER_IP=$(cat master_ip.txt)
+          MASTER_PRIVATE_IP=$(cat master_private_ip.txt)
+          WORKER_IPS=$(cat worker_ips.txt)
           
-      - name: Install K3s on worker nodes
-        run: |
-          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
-          WORKER_IPS=$(cat terraform_output.txt | grep "WORKER_IPS" | cut -d'=' -f2)
-          MASTER_PRIVATE_IP=$(cat terraform_output.txt | grep "MASTER_PRIVATE_IP" | cut -d'=' -f2)
-          WORKER_PRIVATE_IP=$(cat terraform_output.txt | grep "WORKER_PRIVATE_IP" | cut -d'=' -f2)
-          K3S_TOKEN=$(ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@$MASTER_IPS "sudo /usr/local/bin/k3s token create")
-          echo "K3S_TOKEN=$K3S_TOKEN"
-          IFS=',' read -ra ADDR <<< "${WORKER_IPS}"
-          for worker_ip in "${ADDR[@]}"; do
-            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$worker_ip << EOF
+          K3S_TOKEN=$(ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IP "sudo cat /var/lib/rancher/k3s/server/node-token")
+
+          for WORKER_IP in $(echo $WORKER_IPS | tr "," "\n"); do
+            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$WORKER_IP << EOF
+              set -e
               curl -sfL https://get.k3s.io | K3S_URL=https://${MASTER_PRIVATE_IP}:6443 K3S_TOKEN=$K3S_TOKEN sh -
-          EOF
+            EOF
           done
 
-      - name: Copy k3s.yaml from Master Node to GitHub Runner
+      - name: Copy k3s.yaml to GitHub Runner
         run: |
-          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
-          MASTER_PRIVATE_IP=$(cat terraform_output.txt | grep "MASTER_PRIVATE_IP" | cut -d'=' -f2)
-          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@${MASTER_IPS}:/etc/rancher/k3s/k3s.yaml ./k3s.yaml
-          sed -i "s|127.0.0.1|${MASTER_PRIVATE_IP}|" k3s.yaml
+          MASTER_IP=$(cat master_ip.txt)
+          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IP:/etc/rancher/k3s/k3s.yaml ./k3s.yaml
+          sed -i "s|127.0.0.1|$(cat master_private_ip.txt)|" k3s.yaml
 
-      - name: Copy k3s.yaml from GitHub Runner to Worker Nodes
+      - name: Copy k3s.yaml to Worker Nodes
         run: |
-          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
-          WORKER_IPS=$(cat terraform_output.txt | grep "WORKER_IPS" | cut -d'=' -f2)
-
-          IFS=',' read -ra ADDR <<< "${WORKER_IPS}"
-          for worker_ip in "${ADDR[@]}"; do
-            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$worker_ip "mkdir -p /home/ubuntu/.kube"
-            scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ./k3s.yaml ubuntu@$worker_ip:/home/ubuntu/.kube/k3s.yaml
+          WORKER_IPS=$(cat worker_ips.txt)
+          for WORKER_IP in $(echo $WORKER_IPS | tr "," "\n"); do
+            scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ./k3s.yaml ubuntu@$WORKER_IP:/home/ubuntu/.kube/k3s.yaml
           done
 
-      - name: Verify k3s.yaml exists on Worker Nodes
+      - name: Verify Worker Nodes in Cluster
         run: |
-          WORKER_IPS=$(cat terraform_output.txt | grep "WORKER_IPS" | cut -d'=' -f2)
-          MASTER_PRIVATE_IP=$(cat terraform_output.txt | grep "MASTER_PRIVATE_IP" | cut -d'=' -f2)
-          WORKER_PRIVATE_IP=$(cat terraform_output.txt | grep "WORKER_PRIVATE_IP" | cut -d'=' -f2)
-          IFS=',' read -ra ADDR <<< "${WORKER_IPS}"
-          for worker_ip in "${ADDR[@]}"; do
-            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$worker_ip << EOF
-              
-              if [ -f /home/ubuntu/.kube/k3s.yaml ]; then
-                echo "k3s.yaml exists on $worker_ip"
-                sudo chmod 644 /home/ubuntu/.kube/k3s.yaml
-              else
-                echo "ERROR: k3s.yaml NOT found on $worker_ip"
-                exit 1
-              fi
-          EOF
-          done
-
-      - name: Verify Worker Node Joins Cluster
-        run: |
-          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
-          WORKER_IPS=$(cat terraform_output.txt | grep "WORKER_IPS" | cut -d'=' -f2)
-          MASTER_PRIVATE_IP=$(cat terraform_output.txt | grep "MASTER_PRIVATE_IP" | cut -d'=' -f2)
-          WORKER_PRIVATE_IP=$(cat terraform_output.txt | grep "WORKER_PRIVATE_IP" | cut -d'=' -f2)
-          IFS=',' read -ra ADDR <<< "${WORKER_IPS}"
-          for worker_ip in "${ADDR[@]}"; do
-            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$worker_ip << EOF
-              KUBECONFIG=/home/ubuntu/.kube/k3s.yaml kubectl get nodes
-          EOF
-          done
-
-      - name: Verify K3s Cluster Status
-        run: |
-          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
-          WORKER_IPS=$(cat terraform_output.txt | grep "WORKER_IPS" | cut -d'=' -f2)
-          MASTER_PRIVATE_IP=$(cat terraform_output.txt | grep "MASTER_PRIVATE_IP" | cut -d'=' -f2)
-          WORKER_PRIVATE_IP=$(cat terraform_output.txt | grep "WORKER_PRIVATE_IP" | cut -d'=' -f2)
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@${MASTER_IPS} << 'EOF'
-            /usr/local/bin/k3s kubectl get nodes
-          EOF
+          MASTER_IP=$(cat master_ip.txt)
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IP "kubectl get nodes"
 
       - name: Install Helm on Master Node
         run: |
-          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IPS << 'EOF'
+          MASTER_IP=$(cat master_ip.txt)
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IP << 'EOF'
             curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-            
-             
           EOF
 
-      - name: Clone the Repository on Master Node
+      - name: Deploy Helm Chart
         run: |
-          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IPS << 'EOF'
+          MASTER_IP=$(cat master_ip.txt)
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IP << 'EOF'
+            set -e
             git clone https://github.com/ma914372/devops-coding-challenge.git
-          EOF
-
-      - name: Deploy Helm Chart on K3s
-        run: |
-          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IPS << 'EOF'
             cd devops-coding-challenge
-            # Generate a random password
             RANDOM_PASSWORD=$(openssl rand -base64 16)
-
-            # Check if mysql-namespace exists; if not, create it
-            kubectl get namespace mysql-namespace || kubectl create namespace mysql-namespace
-
-            # Create a Kubernetes secret with the random password in the mysql-namespace
-            kubectl create secret generic mysql-secret \
-              --from-literal=rootPassword=$RANDOM_PASSWORD \
-              -n mysql-namespace --dry-run=client -o yaml | kubectl apply -f -
-            helm repo add bitnami https://charts.bitnami.com/bitnami
-            helm repo update
+            kubectl create namespace mysql-namespace --dry-run=client -o yaml | kubectl apply -f -
+            kubectl create secret generic mysql-secret --from-literal=rootPassword=$RANDOM_PASSWORD -n mysql-namespace --dry-run=client -o yaml | kubectl apply -f -
+            helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo update
             helm dependency update ./app
-            #helm install app ./app --namespace app --create-namespace --kubeconfig /etc/rancher/k3s/k3s.yaml
-            helm install app ./app \
-              --namespace app \
-              --create-namespace \
-              --kubeconfig /etc/rancher/k3s/k3s.yaml \
-              --set mysql.auth.rootPassword=$RANDOM_PASSWORD \
-              --set app.env.SPRING_DATASOURCE_PASSWORD=$RANDOM_PASSWORD \
-              --set mysql.secretName=mysql-secret \
-              --set mysql.namespace=mysql-namespace
+            helm install app ./app --namespace app --create-namespace --set mysql.auth.rootPassword=$RANDOM_PASSWORD
           EOF
 
-      - name: Verify Application Deployment
+      - name: Verify Deployment
         run: |
-          MASTER_IPS=$(cat terraform_output.txt | grep "MASTER_IPS" | cut -d'=' -f2)
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IPS "kubectl get pods -A"
+          MASTER_IP=$(cat master_ip.txt)
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$MASTER_IP "kubectl get pods -A"
