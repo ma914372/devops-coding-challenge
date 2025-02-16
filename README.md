@@ -87,13 +87,13 @@ Creates a new user
 - Call the API endpoints using curl.
 Example :
 
-curl -X GET http://<master-node-private-ip>:8080/user?id=1
+_curl -X GET http://<master-node-private-ip>:8080/user?id=1
 Greetings from Crewmeister, Alice!
 
 curl -X POST http://<master-node-private-ip>:8080/user \
      -H "Content-Type: application/json" \
      -d '{"name": "Madhurima"}'
-Greetings from Crewmeister, Madhurima!
+Greetings from Crewmeister, Madhurima!_
 
 curl -X GET http://<master-node-private-ip>:8080/user?id=2
 Greetings from Crewmeister, Madhurima!
