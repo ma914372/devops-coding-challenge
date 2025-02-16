@@ -7,7 +7,7 @@ mysql:
 
   # Authentication: New passwords for MySQL users
   auth:
-    rootPassword: "newRootPassword123"
+    rootPassword: ""
 
 app:
   image:
@@ -17,7 +17,7 @@ app:
     type: LoadBalancer
     port: 8080
   env:
-    SPRING_DATASOURCE_PASSWORD: "newRootPassword123"  # Update to the new root password
+    SPRING_DATASOURCE_PASSWORD: ""  # Update to the new root password
     SPRING_DATASOURCE_URL: "jdbc:mysql://app-mysql:3306/challenge?createDatabaseIfNotExist=true"
     SPRING_DATASOURCE_WRITER_URL: "jdbc:mysql://app-mysql:3306/challenge?createDatabaseIfNotExist=true"
 
