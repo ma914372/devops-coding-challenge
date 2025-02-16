@@ -170,7 +170,14 @@ jobs:
             kubectl create secret generic mysql-secret --from-literal=rootPassword=$RANDOM_PASSWORD -n mysql-namespace --dry-run=client -o yaml | kubectl apply -f -
             helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo update
             helm dependency update ./app
-            helm install app ./app --namespace app --create-namespace --set mysql.auth.rootPassword=$RANDOM_PASSWORD
+            helm install app ./app \
+              --namespace app \
+              --create-namespace \
+              --kubeconfig /etc/rancher/k3s/k3s.yaml \
+              --set mysql.auth.rootPassword=$RANDOM_PASSWORD \
+              --set app.env.SPRING_DATASOURCE_PASSWORD=$RANDOM_PASSWORD \
+              --set mysql.secretName=mysql-secret \
+              --set mysql.namespace=mysql-namespace
           EOF
 
       - name: Verify Deployment
