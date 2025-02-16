@@ -1,11 +1,10 @@
 mysql:
   enabled: true
-  imageTag: "8.4.4-debian-12-r0"  # Correct image tag for MySQL
-  database: "challenge"  # Database name
+  imageTag: "8.4.4-debian-12-r0"  
+  database: "challenge"  
   service:
     port: 3306
 
-  # Authentication: New passwords for MySQL users
   auth:
     rootPassword: ""
 
@@ -17,7 +16,7 @@ app:
     type: LoadBalancer
     port: 8080
   env:
-    SPRING_DATASOURCE_PASSWORD: ""  # Update to the new root password
+    SPRING_DATASOURCE_PASSWORD: "" 
     SPRING_DATASOURCE_URL: "jdbc:mysql://app-mysql:3306/challenge?createDatabaseIfNotExist=true"
     SPRING_DATASOURCE_WRITER_URL: "jdbc:mysql://app-mysql:3306/challenge?createDatabaseIfNotExist=true"
 
