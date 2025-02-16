@@ -142,7 +142,7 @@ jobs:
         run: |
           WORKER_IPS=$(cat worker_ips.txt)
           for WORKER_IP in $(echo $WORKER_IPS | tr "," "\n"); do
-            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$worker_ip "mkdir -p /home/ubuntu/.kube"
+            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$WORKER_IP "mkdir -p /home/ubuntu/.kube"
             scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ./k3s.yaml ubuntu@$WORKER_IP:/home/ubuntu/.kube/k3s.yaml
           done
 
