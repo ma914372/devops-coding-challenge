@@ -59,3 +59,51 @@ Retrieves a user by ID
 #### POST /user
 
 Creates a new user
+
+### Execution Prerequisites
+
+- Fork this repository - https://github.com/ma914372/devops-coding-challenge/
+- Add Secrets in the Github Setings for Github Actions
+    - AWS_ACCESS_KEY_ID
+    - AWS_SECRET_ACCESS_KEY
+    - BUCKET_TF_STATE
+    - DOCKER_PASSWORD
+    - DOCKER_USERNAME
+    - SSH_PRIVATE_KEY
+
+- Modify the ec2-instance key-pair name in variable.tf
+
+- Create S3 bucket for terraform statefile backend and update the main.tf
+
+- Update the docker hub repository details in /app/values.yaml (currently it is having my docker hub repo details)
+
+### Execution steps
+
+- Once the above settings  are done, enable the workflow/main.yml for Docker+Terraform+Kubernetes+Helm
+  
+### Validation steps
+
+- Login to the kubernetes master-node.
+- Call the API endpoints using curl.
+Example :
+
+curl -X GET http://<master-node-private-ip>:8080/user?id=1
+Greetings from Crewmeister, Alice!
+
+curl -X POST http://<master-node-private-ip>:8080/user \
+     -H "Content-Type: application/json" \
+     -d '{"name": "Madhurima"}'
+Greetings from Crewmeister, Madhurima!
+
+curl -X GET http://<master-node-private-ip>:8080/user?id=2
+Greetings from Crewmeister, Madhurima!
+
+* I am using K3S to setup the cluster which doesn't support AWS ELB creation automatically.
+
+### Destroy steps
+  
+  This workflow needs to be triggered manually.
+- For destroying the infrastructure provisioned by terraform there is a destroy.yml too.
+
+
+
